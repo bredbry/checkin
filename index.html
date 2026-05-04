@@ -161,6 +161,7 @@
   }
 
   .scan-hint { text-align: center; color: rgba(255,255,255,0.45); font-size: 12px; font-family: Arial, sans-serif; margin: 8px 0 0; letter-spacing: 1px; }
+  .debug { text-align: center; color: rgba(255,255,255,0.3); font-size: 11px; font-family: monospace; margin: 4px 0 0; }
 
   /* RESULT CARD */
   #result-card {
@@ -283,6 +284,7 @@
       <div class="scan-overlay"><div class="scan-box"></div></div>
     </div>
     <p class="scan-hint">Point at QR code to scan</p>
+    <p class="debug" id="debug-text">Initialising...</p>
   </div>
 
   <div id="result-card">
@@ -457,13 +459,17 @@
     if (!scanning) return;
     const v = document.getElementById('preview');
     const c = document.getElementById('canvas');
+    const dbg = document.getElementById('debug-text');
     if (v.readyState === v.HAVE_ENOUGH_DATA) {
       c.width = v.videoWidth; c.height = v.videoHeight;
       const ctx = c.getContext('2d');
       ctx.drawImage(v, 0, 0);
       const img  = ctx.getImageData(0, 0, c.width, c.height);
       const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+      if (dbg) dbg.textContent = 'Scanning ' + c.width + 'x' + c.height + (code ? ' — found!' : '');
       if (code) { handleScan(code.data); return; }
+    } else {
+      if (dbg) dbg.textContent = 'Camera state: ' + v.readyState;
     }
     rafId = requestAnimationFrame(tick);
   }
