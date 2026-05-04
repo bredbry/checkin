@@ -437,19 +437,21 @@
     const v = document.getElementById('preview');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 1280 } }
+        video: { facingMode: 'environment' }
       });
       v.srcObject = stream;
-      v.onloadedmetadata = () => { v.play(); tick(); };
+      v.setAttribute('playsinline', 'true');
+      v.setAttribute('autoplay', 'true');
+      v.setAttribute('muted', 'true');
+      v.play();
+      v.addEventListener('playing', () => { tick(); }, { once: true });
     } catch(e) {
       if (e.name === 'NotAllowedError') {
-        // User denied — show a tap-to-retry button instead of alert
         const hint = document.querySelector('.scan-hint');
         hint.innerHTML = '<span style="color:#F0337A; cursor:pointer;" onclick="startCamera()">📷 Tap here to enable camera</span>';
       } else if (e.name === 'NotFoundError') {
         document.querySelector('.scan-hint').textContent = 'No camera found on this device.';
       } else {
-        // Any other error — retry silently after a short delay
         setTimeout(startCamera, 1500);
       }
     }
@@ -460,7 +462,7 @@
     const v = document.getElementById('preview');
     const c = document.getElementById('canvas');
     const dbg = document.getElementById('debug-text');
-    if (v.readyState === v.HAVE_ENOUGH_DATA) {
+    if (v.readyState >= 2 && v.videoWidth > 0) {
       c.width = v.videoWidth; c.height = v.videoHeight;
       const ctx = c.getContext('2d');
       ctx.drawImage(v, 0, 0);
@@ -469,7 +471,7 @@
       if (dbg) dbg.textContent = 'Scanning ' + c.width + 'x' + c.height + (code ? ' — found!' : '');
       if (code) { handleScan(code.data); return; }
     } else {
-      if (dbg) dbg.textContent = 'Camera state: ' + v.readyState;
+      if (dbg) dbg.textContent = 'State: ' + v.readyState + ' | Size: ' + v.videoWidth + 'x' + v.videoHeight;
     }
     rafId = requestAnimationFrame(tick);
   }
