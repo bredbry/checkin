@@ -7,546 +7,325 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+:root { --blue:#2B5F8E; --pink:#F0337A; --green:#1a9e5c; --red:#c0392b; --yellow:#f1c40f; --dark:#1a1a2e; }
+body { font-family:Georgia,serif; background:var(--dark); min-height:100vh; display:flex; flex-direction:column; align-items:center; overflow-x:hidden; transition:background 0.5s; }
+body.valid   { background:var(--green); }
+body.invalid { background:var(--red); }
+body.already { background:var(--yellow); }
+body.already .result-name, body.already .status-text { color:#333; }
+body.already #next-btn { color:#333; border-color:rgba(0,0,0,0.2); background:rgba(0,0,0,0.08); }
 
-  :root {
-    --blue: #2B5F8E;
-    --pink: #F0337A;
-    --green: #1a9e5c;
-    --red: #c0392b;
-    --yellow: #f1c40f;
-    --neutral: #1a1a2e;
-  }
+header { width:100%; background:var(--blue); padding:14px 20px; text-align:center; }
+header h1 { color:#fff; font-size:18px; font-weight:normal; letter-spacing:1px; }
+header p  { color:rgba(255,255,255,0.6); font-size:11px; letter-spacing:2px; text-transform:uppercase; margin-top:3px; font-family:Arial,sans-serif; }
 
-  body {
-    font-family: 'Georgia', serif;
-    background: var(--neutral);
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    overflow-x: hidden;
-    transition: background 0.5s ease;
-  }
+/* SETUP */
+#setup { width:100%; max-width:480px; padding:28px 16px; }
+#setup h2 { color:#fff; font-size:19px; font-weight:normal; margin-bottom:8px; }
+#setup p  { color:rgba(255,255,255,0.6); font-size:13px; font-family:Arial,sans-serif; line-height:1.7; margin-bottom:20px; }
+.upload-box { width:100%; border:2px dashed rgba(255,255,255,0.25); border-radius:14px; padding:36px 20px; text-align:center; cursor:pointer; margin-bottom:14px; }
+.upload-box:hover { border-color:var(--pink); }
+.upload-box .icon  { font-size:38px; margin-bottom:10px; }
+.upload-box .label { color:#fff; font-size:15px; margin-bottom:4px; }
+.upload-box .sub   { color:rgba(255,255,255,0.4); font-size:12px; font-family:Arial,sans-serif; }
+#file-input { display:none; }
+.config { display:none; background:rgba(255,255,255,0.06); border-radius:12px; padding:16px; margin-bottom:12px; }
+.config-title { color:rgba(255,255,255,0.45); font-size:10px; letter-spacing:2px; text-transform:uppercase; font-family:Arial,sans-serif; margin-bottom:10px; }
+.frow { display:flex; align-items:center; margin-bottom:8px; }
+.frow:last-child { margin-bottom:0; }
+.frow label { color:rgba(255,255,255,0.7); font-size:13px; font-family:Arial,sans-serif; min-width:90px; }
+.frow select { flex:1; margin-left:10px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); border-radius:8px; color:#fff; font-size:13px; padding:7px 10px; }
+.frow select option { background:#1a1a2e; }
+#file-info { display:none; color:rgba(255,255,255,0.7); font-size:12px; font-family:Arial,sans-serif; background:rgba(26,158,92,0.15); border:1px solid rgba(26,158,92,0.3); border-radius:8px; padding:10px 14px; margin-bottom:12px; }
+#start-btn { display:none; width:100%; padding:15px; background:var(--pink); color:#fff; border:none; border-radius:10px; font-size:16px; font-family:Arial,sans-serif; letter-spacing:1px; cursor:pointer; }
 
-  body.valid   { background: var(--green); }
-  body.invalid { background: var(--red); }
-  body.already { background: var(--yellow); }
+/* SCANNER */
+#scanner { display:none; width:100%; flex-direction:column; align-items:center; }
+.cam-wrap { width:100%; max-width:480px; padding:16px 16px 0; }
+#cam-box { position:relative; width:100%; border-radius:16px; overflow:hidden; background:#000; aspect-ratio:1; }
+#video { width:100%; height:100%; object-fit:cover; display:block; }
+#canvas { display:none; }
+.overlay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; }
+.scan-box { width:58%; height:58%; border:3px solid var(--pink); border-radius:12px; box-shadow:0 0 0 9999px rgba(0,0,0,0.5); animation:pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{border-color:var(--pink)} 50%{border-color:rgba(255,255,255,0.8)} }
+.hint  { text-align:center; color:rgba(255,255,255,0.45); font-size:12px; font-family:Arial,sans-serif; margin:8px 0 0; letter-spacing:1px; }
+.debug { text-align:center; color:rgba(255,255,255,0.3); font-size:11px; font-family:monospace; margin:3px 0 0; }
 
-  header {
-    width: 100%;
-    background: var(--blue);
-    padding: 14px 20px;
-    text-align: center;
-  }
-  header h1 { color: #fff; font-size: 18px; font-weight: normal; letter-spacing: 1px; }
-  header p  { color: rgba(255,255,255,0.6); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin-top: 3px; font-family: Arial, sans-serif; }
+#cam-btn { display:none; margin:10px auto 0; padding:13px 28px; background:var(--pink); color:#fff; border:none; border-radius:50px; font-size:14px; font-family:Arial,sans-serif; cursor:pointer; }
 
-  /* SETUP */
-  #setup-screen { width: 100%; max-width: 480px; padding: 32px 16px; }
-  #setup-screen h2 { color: #fff; font-size: 20px; font-weight: normal; margin-bottom: 10px; }
-  #setup-screen p  { color: rgba(255,255,255,0.6); font-size: 13px; font-family: Arial, sans-serif; line-height: 1.7; margin-bottom: 24px; }
+/* RESULT */
+#result { display:none; width:calc(100% - 32px); max-width:480px; margin:16px 16px 0; background:rgba(255,255,255,0.18); backdrop-filter:blur(10px); border-radius:18px; padding:28px 24px; text-align:center; animation:up 0.35s ease; }
+@keyframes up { from{transform:translateY(24px);opacity:0} to{transform:translateY(0);opacity:1} }
+.status-icon { font-size:52px; margin-bottom:12px; }
+.result-name { color:#fff; font-size:30px; font-weight:normal; margin-bottom:6px; }
+.status-text { color:rgba(255,255,255,0.8); font-size:13px; font-family:Arial,sans-serif; letter-spacing:2px; text-transform:uppercase; }
+#next-btn { display:none; margin:16px auto 0; padding:13px 34px; background:rgba(255,255,255,0.18); color:#fff; border:2px solid rgba(255,255,255,0.4); border-radius:50px; font-size:15px; font-family:Arial,sans-serif; cursor:pointer; letter-spacing:1px; }
 
-  .upload-area {
-    width: 100%;
-    border: 2px dashed rgba(255,255,255,0.25);
-    border-radius: 14px;
-    padding: 40px 20px;
-    text-align: center;
-    cursor: pointer;
-    transition: border-color 0.2s, background 0.2s;
-    margin-bottom: 16px;
-  }
-  .upload-area:hover, .upload-area.dragover { border-color: var(--pink); background: rgba(240,51,122,0.07); }
-  .upload-area .icon  { font-size: 40px; margin-bottom: 12px; }
-  .upload-area .label { color: #fff; font-size: 15px; margin-bottom: 6px; }
-  .upload-area .sub   { color: rgba(255,255,255,0.4); font-size: 12px; font-family: Arial, sans-serif; }
-
-  #file-input { display: none; }
-
-  .config-section {
-    display: none;
-    background: rgba(255,255,255,0.06);
-    border-radius: 12px;
-    padding: 18px 16px;
-    margin-bottom: 14px;
-  }
-
-  .config-section .section-title {
-    color: rgba(255,255,255,0.45);
-    font-size: 10px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    font-family: Arial, sans-serif;
-    margin-bottom: 12px;
-  }
-
-  .field-row {
-    display: flex; align-items: center;
-    margin-bottom: 10px;
-  }
-  .field-row:last-child { margin-bottom: 0; }
-  .field-row label {
-    color: rgba(255,255,255,0.7);
-    font-size: 13px;
-    font-family: Arial, sans-serif;
-    min-width: 90px;
-  }
-  .field-row select {
-    flex: 1; margin-left: 10px;
-    background: rgba(255,255,255,0.1);
-    border: 1px solid rgba(255,255,255,0.2);
-    border-radius: 8px;
-    color: #fff;
-    font-size: 13px;
-    padding: 8px 10px;
-    cursor: pointer;
-  }
-  .field-row select option { background: #1a1a2e; color: #fff; }
-
-  #file-info {
-    display: none;
-    color: rgba(255,255,255,0.7);
-    font-size: 12px;
-    font-family: Arial, sans-serif;
-    background: rgba(26,158,92,0.15);
-    border: 1px solid rgba(26,158,92,0.3);
-    border-radius: 8px;
-    padding: 10px 14px;
-    margin-bottom: 14px;
-  }
-
-  #start-btn {
-    display: none;
-    width: 100%; padding: 16px;
-    background: var(--pink); color: #fff;
-    border: none; border-radius: 10px;
-    font-size: 16px; font-family: Arial, sans-serif;
-    letter-spacing: 1px; cursor: pointer;
-    transition: opacity 0.2s;
-  }
-  #start-btn:active { opacity: 0.8; }
-
-  /* SCANNER */
-  #scanner-screen { display: none; width: 100%; flex-direction: column; align-items: center; }
-
-  .camera-wrap { width: 100%; max-width: 480px; padding: 16px 16px 0; }
-
-  #camera-container {
-    position: relative; width: 100%;
-    border-radius: 16px; overflow: hidden;
-    background: #000; aspect-ratio: 1;
-  }
-
-  #preview { width: 100%; height: 100%; object-fit: cover; display: block; }
-  #canvas  { display: none; }
-
-  .scan-overlay {
-    position: absolute; inset: 0;
-    display: flex; align-items: center; justify-content: center;
-    pointer-events: none;
-  }
-
-  .scan-box {
-    width: 58%; height: 58%;
-    border: 3px solid var(--pink);
-    border-radius: 12px;
-    box-shadow: 0 0 0 9999px rgba(0,0,0,0.5);
-    animation: pulse 2s ease-in-out infinite;
-  }
-
-  @keyframes pulse {
-    0%,100% { border-color: var(--pink); }
-    50%      { border-color: rgba(255,255,255,0.8); }
-  }
-
-  .scan-hint { text-align: center; color: rgba(255,255,255,0.45); font-size: 12px; font-family: Arial, sans-serif; margin: 8px 0 0; letter-spacing: 1px; }
-  .debug { text-align: center; color: rgba(255,255,255,0.3); font-size: 11px; font-family: monospace; margin: 4px 0 0; }
-
-  /* RESULT CARD */
-  #result-card {
-    display: none;
-    width: calc(100% - 32px); max-width: 480px;
-    margin: 16px 16px 0;
-    background: rgba(255,255,255,0.18);
-    backdrop-filter: blur(10px);
-    border-radius: 18px;
-    padding: 28px 24px;
-    text-align: center;
-    animation: slideUp 0.35s ease;
-  }
-
-  @keyframes slideUp {
-    from { transform: translateY(24px); opacity: 0; }
-    to   { transform: translateY(0);    opacity: 1; }
-  }
-
-  .status-icon { font-size: 52px; margin-bottom: 12px; }
-  .result-name { color: #fff; font-size: 30px; font-weight: normal; margin-bottom: 6px; }
-  .status-text { color: rgba(255,255,255,0.8); font-size: 13px; font-family: Arial, sans-serif; letter-spacing: 2px; text-transform: uppercase; }
-
-  body.already .result-name,
-  body.already .status-text { color: #333; }
-
-  #next-btn {
-    display: none;
-    margin: 16px auto 0;
-    padding: 14px 36px;
-    background: rgba(255,255,255,0.18);
-    color: #fff;
-    border: 2px solid rgba(255,255,255,0.4);
-    border-radius: 50px;
-    font-size: 15px; font-family: Arial, sans-serif;
-    cursor: pointer; letter-spacing: 1px;
-  }
-  body.already #next-btn { color: #333; border-color: rgba(0,0,0,0.2); background: rgba(0,0,0,0.08); }
-  #next-btn:active { opacity: 0.7; }
-
-  /* ATTENDEE LIST */
-  .list-section { width: 100%; max-width: 480px; padding: 24px 16px 40px; }
-
-  .list-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
-  .list-header h2 { color: rgba(255,255,255,0.45); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; font-family: Arial, sans-serif; }
-  .counter { color: rgba(255,255,255,0.6); font-size: 13px; font-family: Arial, sans-serif; }
-  .counter span { color: #fff; font-weight: bold; }
-
-  .attendee-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
-
-  .attendee-item {
-    display: flex; align-items: center; justify-content: space-between;
-    background: rgba(255,255,255,0.07);
-    border-radius: 10px; padding: 12px 16px;
-    font-family: Arial, sans-serif; font-size: 14px;
-    color: rgba(255,255,255,0.55);
-    transition: all 0.35s;
-  }
-  .attendee-item.checked { background: rgba(26,158,92,0.28); color: #fff; }
-  .check-mark { font-size: 16px; opacity: 0; transition: opacity 0.3s; }
-  .attendee-item.checked .check-mark { opacity: 1; }
+/* LIST */
+.list { width:100%; max-width:480px; padding:24px 16px 40px; }
+.list-hdr { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:12px; }
+.list-hdr h2 { color:rgba(255,255,255,0.45); font-size:11px; letter-spacing:2px; text-transform:uppercase; font-family:Arial,sans-serif; }
+.counter { color:rgba(255,255,255,0.6); font-size:13px; font-family:Arial,sans-serif; }
+.counter span { color:#fff; font-weight:bold; }
+.alist { list-style:none; display:flex; flex-direction:column; gap:6px; }
+.aitem { display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,0.07); border-radius:10px; padding:12px 16px; font-family:Arial,sans-serif; font-size:14px; color:rgba(255,255,255,0.55); transition:all 0.35s; }
+.aitem.checked { background:rgba(26,158,92,0.28); color:#fff; }
+.ck { font-size:16px; opacity:0; transition:opacity 0.3s; }
+.aitem.checked .ck { opacity:1; }
 </style>
 </head>
 <body>
-
 <header>
   <h1>Made to Thrive</h1>
   <p>Event Check-In</p>
 </header>
 
-<!-- SETUP SCREEN -->
-<div id="setup-screen">
+<div id="setup">
   <h2>Upload your attendee list</h2>
-  <p>Download your Google Sheet as Excel (.xlsx) and upload it below. You can then choose which tab and which columns to use.</p>
-
-  <div class="upload-area" id="upload-area" onclick="document.getElementById('file-input').click()">
+  <p>Download your Google Sheet as Excel (.xlsx) and upload it below. Then choose which tab and columns to use.</p>
+  <div class="upload-box" onclick="document.getElementById('file-input').click()">
     <div class="icon">📊</div>
     <div class="label">Tap to upload Excel file</div>
     <div class="sub">.xlsx or .xls</div>
   </div>
   <input type="file" id="file-input" accept=".xlsx,.xls" onchange="handleFile(event)">
-
   <div id="file-info"></div>
-
-  <!-- TAB SELECTION -->
-  <div class="config-section" id="tab-section">
-    <div class="section-title">Select sheet tab</div>
-    <div class="field-row">
-      <label>Tab</label>
-      <select id="tab-select" onchange="onTabChange()"></select>
-    </div>
+  <div class="config" id="tab-cfg">
+    <div class="config-title">Select sheet tab</div>
+    <div class="frow"><label>Tab</label><select id="tab-sel" onchange="loadTab(this.value)"></select></div>
   </div>
-
-  <!-- COLUMN MAPPING -->
-  <div class="config-section" id="col-section">
-    <div class="section-title">Map columns</div>
-    <div class="field-row">
-      <label>Token</label>
-      <select id="col-token"></select>
-    </div>
-    <div class="field-row">
-      <label>First Name</label>
-      <select id="col-first"></select>
-    </div>
-    <div class="field-row">
-      <label>Last Name</label>
-      <select id="col-last"></select>
-    </div>
+  <div class="config" id="col-cfg">
+    <div class="config-title">Map columns</div>
+    <div class="frow"><label>Token</label><select id="col-tok"></select></div>
+    <div class="frow"><label>First Name</label><select id="col-fst"></select></div>
+    <div class="frow"><label>Last Name</label><select id="col-lst"></select></div>
   </div>
-
   <button id="start-btn" onclick="startScanner()">Start Check-In →</button>
 </div>
 
-<!-- SCANNER SCREEN -->
-<div id="scanner-screen">
-  <div class="camera-wrap">
-    <div id="camera-container">
-      <video id="preview" playsinline autoplay muted></video>
+<div id="scanner">
+  <div class="cam-wrap">
+    <div id="cam-box">
+      <video id="video" playsinline autoplay muted></video>
       <canvas id="canvas"></canvas>
-      <div class="scan-overlay"><div class="scan-box"></div></div>
+      <div class="overlay"><div class="scan-box"></div></div>
     </div>
-    <p class="scan-hint" id="scan-hint">Point at QR code to scan</p>
-    <p class="debug" id="debug-text">Tap button to start</p>
-    <button id="camera-btn" onclick="startCamera()" style="display:block; margin:10px auto; padding:14px 28px; background:var(--pink); color:#fff; border:none; border-radius:50px; font-size:15px; font-family:Arial,sans-serif; cursor:pointer; letter-spacing:1px;">📷 Start Camera</button>
+    <p class="hint">Point at QR code to scan</p>
+    <p class="debug" id="dbg">Waiting...</p>
+    <button id="cam-btn" onclick="startCamera()">📷 Start Camera</button>
   </div>
-
-  <div id="result-card">
-    <div class="status-icon" id="status-icon"></div>
-    <div class="result-name" id="result-name"></div>
-    <div class="status-text" id="status-text"></div>
+  <div id="result">
+    <div class="status-icon" id="ico"></div>
+    <div class="result-name" id="rname"></div>
+    <div class="status-text" id="rtxt"></div>
   </div>
-
-  <button id="next-btn" onclick="resetScanner()">Scan Next →</button>
-
-  <div class="list-section">
-    <div class="list-header">
+  <button id="next-btn" onclick="reset()">Scan Next →</button>
+  <div class="list">
+    <div class="list-hdr">
       <h2>Attendees</h2>
-      <div class="counter"><span id="checked-count">0</span> / <span id="total-count">0</span> checked in</div>
+      <div class="counter"><span id="cnt">0</span> / <span id="tot">0</span> checked in</div>
     </div>
-    <ul class="attendee-list" id="attendee-list"></ul>
+    <ul class="alist" id="alist"></ul>
   </div>
 </div>
 
 <script>
-  let attendees  = {};
-  let scanning   = true;
-  let rafId      = null;
-  let workbook   = null;
-  let sheetData  = [];
+var attendees = {};
+var scanning  = false;
+var wb        = null;
+var rows      = [];
+var rafId     = null;
 
-  // ── FILE UPLOAD ────────────────────────────────────────────
-  function handleFile(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = function(ev) {
-      try {
-        workbook = XLSX.read(new Uint8Array(ev.target.result), { type: 'array' });
-
-        // Populate tab selector
-        const tabSel = document.getElementById('tab-select');
-        tabSel.innerHTML = workbook.SheetNames.map(n => `<option value="${n}">${n}</option>`).join('');
-
-        // Auto-select "Check In" tab if it exists
-        const preferred = workbook.SheetNames.find(n => n.toLowerCase().replace(/\s/g,'') === 'checkin');
-        if (preferred) tabSel.value = preferred;
-
-        document.getElementById('file-info').style.display = 'block';
-        document.getElementById('file-info').textContent   = '✅ ' + file.name + ' — ' + workbook.SheetNames.length + ' tab(s) found';
-        document.getElementById('tab-section').style.display = 'block';
-
-        loadTab(tabSel.value);
-
-      } catch(err) {
-        alert('Could not read file. Please make sure it is a valid .xlsx or .xls file.');
-      }
-    };
-    reader.readAsArrayBuffer(file);
-  }
-
-  function onTabChange() {
-    loadTab(document.getElementById('tab-select').value);
-  }
-
-  function loadTab(tabName) {
-    const sheet = workbook.Sheets[tabName];
-    const json  = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-
-    if (!json || json.length < 2) {
-      document.getElementById('col-section').style.display  = 'none';
-      document.getElementById('start-btn').style.display    = 'none';
-      return;
-    }
-
-    const headers  = json[0].map((h, i) => ({ label: String(h || 'Column ' + (i+1)), index: i }));
-    sheetData = json.slice(1).filter(row => row.some(c => c !== undefined && c !== ''));
-
-    // Populate column dropdowns
-    const opts = headers.map(h => `<option value="${h.index}">${h.label}</option>`).join('');
-    ['col-token','col-first','col-last'].forEach(id => {
-      document.getElementById(id).innerHTML = opts;
-    });
-
-    // Auto-select likely columns
-    autoSelect('col-token', ['token']);
-    autoSelect('col-first', ['first']);
-    autoSelect('col-last',  ['last','surname']);
-
-    document.getElementById('col-section').style.display = 'block';
-    document.getElementById('start-btn').style.display   = 'block';
-
-    // Update file info with row count
-    document.getElementById('file-info').textContent = '✅ Tab "' + tabName + '" — ' + sheetData.length + ' rows loaded';
-  }
-
-  function autoSelect(id, keywords) {
-    const sel  = document.getElementById(id);
-    const opts = Array.from(sel.options);
-    const match = opts.find(o => keywords.some(k => o.text.toLowerCase().includes(k)));
-    if (match) sel.value = match.value;
-  }
-
-  // ── START SCANNER ──────────────────────────────────────────
-  function startScanner() {
-    const ti = parseInt(document.getElementById('col-token').value);
-    const fi = parseInt(document.getElementById('col-first').value);
-    const li = parseInt(document.getElementById('col-last').value);
-
-    attendees = {};
-    sheetData.forEach(row => {
-      const token = String(row[ti] || '').trim().toUpperCase().substring(0, 6);
-      const first = String(row[fi] || '').trim();
-      const last  = String(row[li] || '').trim();
-      if (token) attendees[token] = { first, last, checkedIn: false };
-    });
-
-    if (!Object.keys(attendees).length) {
-      alert('No valid attendees found. Check your column mapping.');
-      return;
-    }
-
-    document.getElementById('setup-screen').style.display = 'none';
-    const ss = document.getElementById('scanner-screen');
-    ss.style.display = 'flex';
-
-    document.getElementById('total-count').textContent = Object.keys(attendees).length;
-    buildList();
-    // Show tap-to-start button — iOS Safari requires camera start from direct user gesture
-    const btn = document.getElementById('camera-btn');
-    if (btn) btn.style.display = 'block';
-    const dbg = document.getElementById('debug-text');
-    if (dbg) dbg.textContent = 'Tap the button above to start camera';
-  }
-
-  // ── ATTENDEE LIST ──────────────────────────────────────────
-  function buildList() {
-    const ul = document.getElementById('attendee-list');
-    ul.innerHTML = '';
-    Object.entries(attendees).forEach(([token, a]) => {
-      const li = document.createElement('li');
-      li.className = 'attendee-item';
-      li.id = 'row-' + token;
-      li.innerHTML = `<span>${a.first} ${a.last}</span><span class="check-mark">✓</span>`;
-      ul.appendChild(li);
-    });
-  }
-
-  function markCheckedIn(token) {
-    const el = document.getElementById('row-' + token);
-    if (el) el.classList.add('checked');
-    document.getElementById('checked-count').textContent =
-      Object.values(attendees).filter(a => a.checkedIn).length;
-  }
-
-  // ── CAMERA ─────────────────────────────────────────────────
-  async function startCamera() {
-    const dbg = document.getElementById('debug-text');
-    const btn = document.getElementById('camera-btn');
-    const v   = document.getElementById('preview');
-    if (btn) btn.style.display = 'none';
-    if (dbg) dbg.textContent = 'Starting camera...';
-
+// FILE UPLOAD
+function handleFile(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' } }
-      });
-      v.srcObject = stream;
-      v.setAttribute('playsinline', 'true');
-      v.muted = true;
-
-      await new Promise((resolve) => {
-        v.onloadedmetadata = () => { v.play().then(resolve).catch(resolve); };
-        v.oncanplay = resolve;
-        setTimeout(resolve, 3000); // fallback after 3s
-      });
-
-      if (dbg) dbg.textContent = 'Camera ready, scanning...';
-      requestAnimationFrame(tick);
-
-    } catch(e) {
-      if (dbg) dbg.textContent = 'Error: ' + e.name;
-      if (btn) btn.style.display = 'block';
+      wb = XLSX.read(new Uint8Array(ev.target.result), {type:'array'});
+      var sel = document.getElementById('tab-sel');
+      sel.innerHTML = wb.SheetNames.map(function(n){ return '<option value="'+n+'">'+n+'</option>'; }).join('');
+      var preferred = wb.SheetNames.find(function(n){ return n.toLowerCase().replace(/\s/g,'') === 'checkin' || n.toLowerCase().includes('token'); });
+      if (preferred) sel.value = preferred;
+      document.getElementById('file-info').style.display = 'block';
+      document.getElementById('file-info').textContent = '✅ ' + file.name + ' — ' + wb.SheetNames.length + ' tab(s)';
+      document.getElementById('tab-cfg').style.display = 'block';
+      loadTab(sel.value);
+    } catch(err) {
+      alert('Could not read file: ' + err.message);
     }
-  }
+  };
+  reader.readAsArrayBuffer(file);
+}
 
-  function tick() {
-    if (!scanning) return;
-    const v   = document.getElementById('preview');
-    const c   = document.getElementById('canvas');
-    const dbg = document.getElementById('debug-text');
+function loadTab(name) {
+  var sheet = wb.Sheets[name];
+  var json  = XLSX.utils.sheet_to_json(sheet, {header:1});
+  if (!json || json.length < 2) { document.getElementById('col-cfg').style.display='none'; document.getElementById('start-btn').style.display='none'; return; }
+  var hdrs = json[0].map(function(h,i){ return {label:String(h||'Col '+(i+1)), idx:i}; });
+  rows = json.slice(1).filter(function(r){ return r.some(function(c){ return c!==undefined && c!==''; }); });
+  var opts = hdrs.map(function(h){ return '<option value="'+h.idx+'">'+h.label+'</option>'; }).join('');
+  ['col-tok','col-fst','col-lst'].forEach(function(id){ document.getElementById(id).innerHTML = opts; });
+  autoSel('col-tok', ['token','tok']);
+  autoSel('col-fst', ['first','fname']);
+  autoSel('col-lst', ['last','lname','surname']);
+  document.getElementById('col-cfg').style.display = 'block';
+  document.getElementById('start-btn').style.display = 'block';
+  document.getElementById('file-info').textContent = '✅ Tab "'+name+'" — '+rows.length+' rows';
+}
 
-    const w = v.videoWidth  || v.offsetWidth  || c.offsetWidth  || 480;
-    const h = v.videoHeight || v.offsetHeight || c.offsetHeight || 640;
+function autoSel(id, keys) {
+  var sel  = document.getElementById(id);
+  var opts = Array.from(sel.options);
+  var m = opts.find(function(o){ return keys.some(function(k){ return o.text.toLowerCase().indexOf(k) >= 0; }); });
+  if (m) sel.value = m.value;
+}
 
-    if (w > 0 && h > 0) {
-      c.width  = w;
-      c.height = h;
-      const ctx = c.getContext('2d', { willReadFrequently: true });
-      ctx.drawImage(v, 0, 0, w, h);
-      try {
-        const img  = ctx.getImageData(0, 0, w, h);
-        const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
-        if (dbg) dbg.textContent = 'Scanning ' + w + 'x' + h + (code ? ' ✓' : '');
-        if (code && scanning) { handleScan(code.data); return; }
-      } catch(e) {
-        if (dbg) dbg.textContent = 'Scan err: ' + e.message;
-      }
-    } else {
-      if (dbg) dbg.textContent = 'Waiting for video...';
-    }
-    rafId = requestAnimationFrame(tick);
-  }
-
-
-  // ── SCAN RESULT ────────────────────────────────────────────
-  function handleScan(data) {
-    scanning = false;
-
-    const token = data.split('|')[0].trim().toUpperCase().substring(0, 6);
-
-    document.getElementById('result-card').style.display = 'block';
-    document.getElementById('next-btn').style.display    = 'block';
-
-    if (!attendees[token]) {
-      document.body.className = 'invalid';
-      document.getElementById('status-icon').textContent = '❌';
-      document.getElementById('result-name').textContent = 'Not Recognised';
-      document.getElementById('status-text').textContent = 'Invalid QR Code';
-
-    } else if (attendees[token].checkedIn) {
-      document.body.className = 'already';
-      document.getElementById('status-icon').textContent = '⚠️';
-      document.getElementById('result-name').textContent = attendees[token].first + ' ' + attendees[token].last;
-      document.getElementById('status-text').textContent = 'Already Checked In';
-
-    } else {
-      attendees[token].checkedIn = true;
-      markCheckedIn(token);
-      document.body.className = 'valid';
-      document.getElementById('status-icon').textContent = '✅';
-      document.getElementById('result-name').textContent = attendees[token].first + ' ' + attendees[token].last;
-      document.getElementById('status-text').textContent = 'Checked In';
-    }
-  }
-
-  // ── RESET ──────────────────────────────────────────────────
-  function resetScanner() {
-    document.body.className = '';
-    document.getElementById('result-card').style.display = 'none';
-    document.getElementById('next-btn').style.display    = 'none';
-    scanning = true;
-    requestAnimationFrame(tick);
-  }
-
-  // ── DRAG & DROP ────────────────────────────────────────────
-  const area = document.getElementById('upload-area');
-  area.addEventListener('dragover',  e => { e.preventDefault(); area.classList.add('dragover'); });
-  area.addEventListener('dragleave', () => area.classList.remove('dragover'));
-  area.addEventListener('drop', e => {
-    e.preventDefault();
-    area.classList.remove('dragover');
-    const file = e.dataTransfer.files[0];
-    if (file) handleFile({ target: { files: [file] } });
+// START SCANNER
+function startScanner() {
+  var ti = parseInt(document.getElementById('col-tok').value);
+  var fi = parseInt(document.getElementById('col-fst').value);
+  var li = parseInt(document.getElementById('col-lst').value);
+  attendees = {};
+  rows.forEach(function(row) {
+    var tok = String(row[ti]||'').trim().toUpperCase().substring(0,6);
+    var fst = String(row[fi]||'').trim();
+    var lst = String(row[li]||'').trim();
+    if (tok) attendees[tok] = {first:fst, last:lst, in:false};
   });
+  if (!Object.keys(attendees).length) { alert('No valid attendees found.'); return; }
+  document.getElementById('setup').style.display = 'none';
+  var sc = document.getElementById('scanner');
+  sc.style.display = 'flex';
+  document.getElementById('tot').textContent = Object.keys(attendees).length;
+  buildList();
+  document.getElementById('cam-btn').style.display = 'block';
+  document.getElementById('dbg').textContent = 'Tap button above to start camera';
+}
+
+// LIST
+function buildList() {
+  var ul = document.getElementById('alist');
+  ul.innerHTML = '';
+  Object.keys(attendees).forEach(function(tok) {
+    var a  = attendees[tok];
+    var li = document.createElement('li');
+    li.className = 'aitem';
+    li.id = 'row-'+tok;
+    li.innerHTML = '<span>'+a.first+' '+a.last+'</span><span class="ck">✓</span>';
+    ul.appendChild(li);
+  });
+}
+
+function markIn(tok) {
+  var el = document.getElementById('row-'+tok);
+  if (el) el.classList.add('checked');
+  document.getElementById('cnt').textContent = Object.values(attendees).filter(function(a){ return a.in; }).length;
+}
+
+// CAMERA
+function startCamera() {
+  var btn = document.getElementById('cam-btn');
+  var dbg = document.getElementById('dbg');
+  btn.style.display = 'none';
+  dbg.textContent = 'Requesting camera...';
+
+  navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}})
+  .then(function(stream) {
+    var v = document.getElementById('video');
+    v.srcObject = stream;
+    dbg.textContent = 'Camera granted, starting...';
+    v.play().then(function() {
+      dbg.textContent = 'Playing, waiting for frames...';
+      waitForFrames(v, 0);
+    }).catch(function(err) {
+      dbg.textContent = 'Play error: '+err.name;
+      btn.style.display = 'block';
+    });
+  })
+  .catch(function(err) {
+    dbg.textContent = 'Camera error: '+err.name;
+    btn.style.display = 'block';
+  });
+}
+
+function waitForFrames(v, count) {
+  var dbg = document.getElementById('dbg');
+  dbg.textContent = 'Frames: '+count+' | '+v.videoWidth+'x'+v.videoHeight;
+  if (v.videoWidth > 0 || count > 15) {
+    dbg.textContent = 'Scanning... ('+v.videoWidth+'x'+v.videoHeight+')';
+    scanning = true;
+    tick();
+  } else {
+    setTimeout(function(){ waitForFrames(v, count+1); }, 200);
+  }
+}
+
+// SCAN LOOP
+function tick() {
+  if (!scanning) return;
+  var v   = document.getElementById('video');
+  var c   = document.getElementById('canvas');
+  var dbg = document.getElementById('dbg');
+  var w   = v.videoWidth  || 480;
+  var h   = v.videoHeight || 640;
+  c.width = w; c.height = h;
+  var ctx = c.getContext('2d');
+  ctx.drawImage(v, 0, 0, w, h);
+  try {
+    var img  = ctx.getImageData(0, 0, w, h);
+    var code = jsQR(img.data, img.width, img.height, {inversionAttempts:'attemptBoth'});
+    dbg.textContent = 'Scanning '+w+'x'+h+(code?' ✓ '+code.data.substring(0,15):'');
+    if (code) { handleScan(code.data); return; }
+  } catch(e) {
+    dbg.textContent = 'jsQR error: '+e.message;
+  }
+  rafId = requestAnimationFrame(tick);
+}
+
+// HANDLE SCAN
+function handleScan(data) {
+  scanning = false;
+  cancelAnimationFrame(rafId);
+  var tok = data.split('|')[0].trim().toUpperCase().substring(0,6);
+  document.getElementById('result').style.display = 'block';
+  document.getElementById('next-btn').style.display = 'block';
+  if (!attendees[tok]) {
+    document.body.className = 'invalid';
+    document.getElementById('ico').textContent   = '❌';
+    document.getElementById('rname').textContent = 'Not Recognised';
+    document.getElementById('rtxt').textContent  = 'Invalid QR Code';
+  } else if (attendees[tok].in) {
+    document.body.className = 'already';
+    document.getElementById('ico').textContent   = '⚠️';
+    document.getElementById('rname').textContent = attendees[tok].first+' '+attendees[tok].last;
+    document.getElementById('rtxt').textContent  = 'Already Checked In';
+  } else {
+    attendees[tok].in = true;
+    markIn(tok);
+    document.body.className = 'valid';
+    document.getElementById('ico').textContent   = '✅';
+    document.getElementById('rname').textContent = attendees[tok].first+' '+attendees[tok].last;
+    document.getElementById('rtxt').textContent  = 'Checked In';
+  }
+}
+
+// RESET
+function reset() {
+  document.body.className = '';
+  document.getElementById('result').style.display   = 'none';
+  document.getElementById('next-btn').style.display = 'none';
+  scanning = true;
+  tick();
+}
+
+// DRAG & DROP
+var box = document.querySelector('.upload-box');
+box.addEventListener('dragover', function(e){ e.preventDefault(); box.style.borderColor='var(--pink)'; });
+box.addEventListener('dragleave', function(){ box.style.borderColor=''; });
+box.addEventListener('drop', function(e){ e.preventDefault(); box.style.borderColor=''; if(e.dataTransfer.files[0]) handleFile({target:{files:e.dataTransfer.files}}); });
 </script>
 </body>
 </html>
