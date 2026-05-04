@@ -455,9 +455,9 @@
       const waitForVideo = setInterval(() => {
         attempts++;
         if (dbg) dbg.textContent = 'W:' + v.videoWidth + ' H:' + v.videoHeight + ' S:' + v.readyState + ' #' + attempts;
-        if (v.videoWidth > 0) {
+        if (v.videoWidth > 0 || attempts > 10) {
           clearInterval(waitForVideo);
-          if (dbg) dbg.textContent = 'Scanning ' + v.videoWidth + 'x' + v.videoHeight;
+          if (dbg) dbg.textContent = 'Starting scan...';
           if (btn) btn.style.display = 'none';
           tick();
         } else if (attempts > 50) {
@@ -475,20 +475,29 @@
 
   function tick() {
     if (!scanning) return;
-    const v = document.getElementById('preview');
-    const c = document.getElementById('canvas');
+    const v   = document.getElementById('preview');
+    const c   = document.getElementById('canvas');
     const dbg = document.getElementById('debug-text');
-    if (v.videoWidth > 0) {
-      c.width = v.videoWidth; c.height = v.videoHeight;
+
+    // iOS Safari can report videoWidth=0 even when video is playing
+    // Use offsetWidth as fallback
+    const w = v.videoWidth  || v.offsetWidth  || 480;
+    const h = v.videoHeight || v.offsetHeight || 640;
+
+    c.width  = w;
+    c.height = h;
+
+    try {
       const ctx = c.getContext('2d');
-      ctx.drawImage(v, 0, 0);
-      const img  = ctx.getImageData(0, 0, c.width, c.height);
+      ctx.drawImage(v, 0, 0, w, h);
+      const img  = ctx.getImageData(0, 0, w, h);
       const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
-      if (dbg) dbg.textContent = 'Scanning ' + c.width + 'x' + c.height + (code ? ' — found: ' + code.data.substring(0,20) : '');
+      if (dbg) dbg.textContent = 'Scanning ' + w + 'x' + h + (code ? ' ✓' : '');
       if (code) { handleScan(code.data); return; }
-    } else {
-      if (dbg) dbg.textContent = 'W:' + v.videoWidth + ' H:' + v.videoHeight + ' S:' + v.readyState;
+    } catch(e) {
+      if (dbg) dbg.textContent = 'Error: ' + e.message;
     }
+
     rafId = requestAnimationFrame(tick);
   }
 
