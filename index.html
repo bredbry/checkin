@@ -435,23 +435,28 @@
   // ── CAMERA ─────────────────────────────────────────────────
   async function startCamera() {
     const v = document.getElementById('preview');
+    const dbg = document.getElementById('debug-text');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment' }
       });
       v.srcObject = stream;
-      v.setAttribute('playsinline', 'true');
-      v.setAttribute('autoplay', 'true');
-      v.setAttribute('muted', 'true');
-      v.play();
-      v.addEventListener('playing', () => { tick(); }, { once: true });
+      v.play().catch(() => {});
+      // Poll until video has dimensions — works reliably on iOS Safari
+      const waitForVideo = setInterval(() => {
+        if (dbg) dbg.textContent = 'Waiting... ' + v.videoWidth + 'x' + v.videoHeight + ' state:' + v.readyState;
+        if (v.videoWidth > 0) {
+          clearInterval(waitForVideo);
+          if (dbg) dbg.textContent = 'Ready — scanning...';
+          tick();
+        }
+      }, 200);
     } catch(e) {
       if (e.name === 'NotAllowedError') {
         const hint = document.querySelector('.scan-hint');
         hint.innerHTML = '<span style="color:#F0337A; cursor:pointer;" onclick="startCamera()">📷 Tap here to enable camera</span>';
-      } else if (e.name === 'NotFoundError') {
-        document.querySelector('.scan-hint').textContent = 'No camera found on this device.';
       } else {
+        if (dbg) dbg.textContent = 'Camera error: ' + e.name;
         setTimeout(startCamera, 1500);
       }
     }
