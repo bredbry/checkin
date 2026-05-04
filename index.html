@@ -4,11 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Made to Thrive — Check In</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script type="module">
-  import { BrowserQRCodeReader } from 'https://unpkg.com/@zxing/browser@latest/esm/index.js';
-  window.ZXingReader = new BrowserQRCodeReader();
-</script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
@@ -446,45 +443,60 @@
   async function startCamera() {
     const dbg = document.getElementById('debug-text');
     const btn = document.getElementById('camera-btn');
+    const v   = document.getElementById('preview');
     if (btn) btn.style.display = 'none';
     if (dbg) dbg.textContent = 'Starting camera...';
 
     try {
-      // Wait for ZXing to be ready
-      let attempts = 0;
-      while (!window.ZXingReader && attempts < 20) {
-        await new Promise(r => setTimeout(r, 200));
-        attempts++;
-      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } }
+      });
+      v.srcObject = stream;
+      v.setAttribute('playsinline', 'true');
+      v.muted = true;
 
-      if (!window.ZXingReader) {
-        if (dbg) dbg.textContent = 'Scanner not loaded, retrying...';
-        setTimeout(startCamera, 1000);
-        return;
-      }
+      await new Promise((resolve) => {
+        v.onloadedmetadata = () => { v.play().then(resolve).catch(resolve); };
+        v.oncanplay = resolve;
+        setTimeout(resolve, 3000); // fallback after 3s
+      });
 
-      const v = document.getElementById('preview');
-      zxingControls = await window.ZXingReader.decodeFromVideoDevice(
-        undefined, // use default camera
-        v,
-        (result, error) => {
-          if (result && scanning) {
-            if (dbg) dbg.textContent = 'Found: ' + result.getText().substring(0, 20);
-            handleScan(result.getText());
-          } else if (error && !(error.name === 'NotFoundException')) {
-            if (dbg) dbg.textContent = 'Scan error: ' + error.name;
-          } else {
-            if (dbg) dbg.textContent = 'Scanning...';
-          }
-        }
-      );
+      if (dbg) dbg.textContent = 'Camera ready, scanning...';
+      requestAnimationFrame(tick);
+
     } catch(e) {
-      if (dbg) dbg.textContent = 'Camera error: ' + e.name;
+      if (dbg) dbg.textContent = 'Error: ' + e.name;
       if (btn) btn.style.display = 'block';
     }
   }
 
-  function tick() {} // no longer needed with ZXing
+  function tick() {
+    if (!scanning) return;
+    const v   = document.getElementById('preview');
+    const c   = document.getElementById('canvas');
+    const dbg = document.getElementById('debug-text');
+
+    const w = v.videoWidth  || v.offsetWidth  || c.offsetWidth  || 480;
+    const h = v.videoHeight || v.offsetHeight || c.offsetHeight || 640;
+
+    if (w > 0 && h > 0) {
+      c.width  = w;
+      c.height = h;
+      const ctx = c.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(v, 0, 0, w, h);
+      try {
+        const img  = ctx.getImageData(0, 0, w, h);
+        const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
+        if (dbg) dbg.textContent = 'Scanning ' + w + 'x' + h + (code ? ' ✓' : '');
+        if (code && scanning) { handleScan(code.data); return; }
+      } catch(e) {
+        if (dbg) dbg.textContent = 'Scan err: ' + e.message;
+      }
+    } else {
+      if (dbg) dbg.textContent = 'Waiting for video...';
+    }
+    rafId = requestAnimationFrame(tick);
+  }
 
 
   // ── SCAN RESULT ────────────────────────────────────────────
@@ -524,8 +536,7 @@
     document.getElementById('result-card').style.display = 'none';
     document.getElementById('next-btn').style.display    = 'none';
     scanning = true;
-    const dbg = document.getElementById('debug-text');
-    if (dbg) dbg.textContent = 'Scanning...';
+    requestAnimationFrame(tick);
   }
 
   // ── DRAG & DROP ────────────────────────────────────────────
