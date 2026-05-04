@@ -283,8 +283,9 @@
       <canvas id="canvas"></canvas>
       <div class="scan-overlay"><div class="scan-box"></div></div>
     </div>
-    <p class="scan-hint">Point at QR code to scan</p>
+    <p class="scan-hint" id="scan-hint">Point at QR code to scan</p>
     <p class="debug" id="debug-text">Initialising...</p>
+    <button id="camera-btn" onclick="startCamera()" style="display:none; margin:10px auto; padding:12px 24px; background:var(--pink); color:#fff; border:none; border-radius:50px; font-size:14px; font-family:Arial,sans-serif; cursor:pointer;">📷 Tap to Start Camera</button>
   </div>
 
   <div id="result-card">
@@ -409,7 +410,7 @@
 
     document.getElementById('total-count').textContent = Object.keys(attendees).length;
     buildList();
-    startCamera();
+    setTimeout(startCamera, 300);
   }
 
   // ── ATTENDEE LIST ──────────────────────────────────────────
@@ -434,31 +435,36 @@
 
   // ── CAMERA ─────────────────────────────────────────────────
   async function startCamera() {
-    const v = document.getElementById('preview');
+    const v   = document.getElementById('preview');
     const dbg = document.getElementById('debug-text');
+    const btn = document.getElementById('camera-btn');
+    if (btn) btn.style.display = 'none';
+    if (dbg) dbg.textContent = 'Requesting camera...';
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
-      });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      if (dbg) dbg.textContent = 'Stream OK, starting...';
       v.srcObject = stream;
-      v.play().catch(() => {});
-      // Poll until video has dimensions — works reliably on iOS Safari
+      v.play().catch(err => { if (dbg) dbg.textContent = 'Play error: ' + err.name; });
+
+      let attempts = 0;
       const waitForVideo = setInterval(() => {
-        if (dbg) dbg.textContent = 'Waiting... ' + v.videoWidth + 'x' + v.videoHeight + ' state:' + v.readyState;
+        attempts++;
+        if (dbg) dbg.textContent = 'W:' + v.videoWidth + ' H:' + v.videoHeight + ' S:' + v.readyState + ' #' + attempts;
         if (v.videoWidth > 0) {
           clearInterval(waitForVideo);
-          if (dbg) dbg.textContent = 'Ready — scanning...';
+          if (dbg) dbg.textContent = 'Scanning ' + v.videoWidth + 'x' + v.videoHeight;
           tick();
+        } else if (attempts > 50) {
+          clearInterval(waitForVideo);
+          if (dbg) dbg.textContent = 'Tap button below to retry';
+          if (btn) btn.style.display = 'block';
         }
       }, 200);
+
     } catch(e) {
-      if (e.name === 'NotAllowedError') {
-        const hint = document.querySelector('.scan-hint');
-        hint.innerHTML = '<span style="color:#F0337A; cursor:pointer;" onclick="startCamera()">📷 Tap here to enable camera</span>';
-      } else {
-        if (dbg) dbg.textContent = 'Camera error: ' + e.name;
-        setTimeout(startCamera, 1500);
-      }
+      if (dbg) dbg.textContent = 'Error: ' + e.name;
+      if (btn) btn.style.display = 'block';
     }
   }
 
