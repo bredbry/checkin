@@ -4,8 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Made to Thrive — Check In</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script type="module">
+  import { BrowserQRCodeReader } from 'https://unpkg.com/@zxing/browser@latest/esm/index.js';
+  window.ZXingReader = new BrowserQRCodeReader();
+</script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
@@ -438,73 +441,55 @@
   }
 
   // ── CAMERA ─────────────────────────────────────────────────
+  let zxingControls = null;
+
   async function startCamera() {
-    const v   = document.getElementById('preview');
     const dbg = document.getElementById('debug-text');
     const btn = document.getElementById('camera-btn');
     if (btn) btn.style.display = 'none';
-    if (dbg) dbg.textContent = 'Requesting camera...';
+    if (dbg) dbg.textContent = 'Starting camera...';
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      if (dbg) dbg.textContent = 'Stream OK, starting...';
-      v.srcObject = stream;
-      v.play().catch(err => { if (dbg) dbg.textContent = 'Play error: ' + err.name; });
-
+      // Wait for ZXing to be ready
       let attempts = 0;
-      const waitForVideo = setInterval(() => {
+      while (!window.ZXingReader && attempts < 20) {
+        await new Promise(r => setTimeout(r, 200));
         attempts++;
-        if (dbg) dbg.textContent = 'W:' + v.videoWidth + ' H:' + v.videoHeight + ' S:' + v.readyState + ' #' + attempts;
-        if (v.videoWidth > 0 || attempts > 10) {
-          clearInterval(waitForVideo);
-          if (dbg) dbg.textContent = 'Starting scan...';
-          if (btn) btn.style.display = 'none';
-          tick();
-        } else if (attempts > 50) {
-          clearInterval(waitForVideo);
-          if (dbg) dbg.textContent = 'Tap button below to retry';
-          if (btn) btn.style.display = 'block';
-        }
-      }, 200);
+      }
 
+      if (!window.ZXingReader) {
+        if (dbg) dbg.textContent = 'Scanner not loaded, retrying...';
+        setTimeout(startCamera, 1000);
+        return;
+      }
+
+      const v = document.getElementById('preview');
+      zxingControls = await window.ZXingReader.decodeFromVideoDevice(
+        undefined, // use default camera
+        v,
+        (result, error) => {
+          if (result && scanning) {
+            if (dbg) dbg.textContent = 'Found: ' + result.getText().substring(0, 20);
+            handleScan(result.getText());
+          } else if (error && !(error.name === 'NotFoundException')) {
+            if (dbg) dbg.textContent = 'Scan error: ' + error.name;
+          } else {
+            if (dbg) dbg.textContent = 'Scanning...';
+          }
+        }
+      );
     } catch(e) {
-      if (dbg) dbg.textContent = 'Error: ' + e.name;
+      if (dbg) dbg.textContent = 'Camera error: ' + e.name;
       if (btn) btn.style.display = 'block';
     }
   }
 
-  function tick() {
-    if (!scanning) return;
-    const v   = document.getElementById('preview');
-    const c   = document.getElementById('canvas');
-    const dbg = document.getElementById('debug-text');
+  function tick() {} // no longer needed with ZXing
 
-    // iOS Safari can report videoWidth=0 even when video is playing
-    // Use offsetWidth as fallback
-    const w = v.videoWidth  || v.offsetWidth  || 480;
-    const h = v.videoHeight || v.offsetHeight || 640;
-
-    c.width  = w;
-    c.height = h;
-
-    try {
-      const ctx = c.getContext('2d');
-      ctx.drawImage(v, 0, 0, w, h);
-      const img  = ctx.getImageData(0, 0, w, h);
-      const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
-      if (dbg) dbg.textContent = 'Scanning ' + w + 'x' + h + (code ? ' ✓' : '');
-      if (code) { handleScan(code.data); return; }
-    } catch(e) {
-      if (dbg) dbg.textContent = 'Error: ' + e.message;
-    }
-
-    rafId = requestAnimationFrame(tick);
-  }
 
   // ── SCAN RESULT ────────────────────────────────────────────
   function handleScan(data) {
     scanning = false;
-    cancelAnimationFrame(rafId);
 
     const token = data.split('|')[0].trim().toUpperCase().substring(0, 6);
 
@@ -539,7 +524,8 @@
     document.getElementById('result-card').style.display = 'none';
     document.getElementById('next-btn').style.display    = 'none';
     scanning = true;
-    tick();
+    const dbg = document.getElementById('debug-text');
+    if (dbg) dbg.textContent = 'Scanning...';
   }
 
   // ── DRAG & DROP ────────────────────────────────────────────
