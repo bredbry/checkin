@@ -284,8 +284,8 @@
       <div class="scan-overlay"><div class="scan-box"></div></div>
     </div>
     <p class="scan-hint" id="scan-hint">Point at QR code to scan</p>
-    <p class="debug" id="debug-text">Initialising...</p>
-    <button id="camera-btn" onclick="startCamera()" style="display:none; margin:10px auto; padding:12px 24px; background:var(--pink); color:#fff; border:none; border-radius:50px; font-size:14px; font-family:Arial,sans-serif; cursor:pointer;">📷 Tap to Start Camera</button>
+    <p class="debug" id="debug-text">Tap button to start</p>
+    <button id="camera-btn" onclick="startCamera()" style="display:block; margin:10px auto; padding:14px 28px; background:var(--pink); color:#fff; border:none; border-radius:50px; font-size:15px; font-family:Arial,sans-serif; cursor:pointer; letter-spacing:1px;">📷 Start Camera</button>
   </div>
 
   <div id="result-card">
@@ -410,7 +410,11 @@
 
     document.getElementById('total-count').textContent = Object.keys(attendees).length;
     buildList();
-    setTimeout(startCamera, 300);
+    // Show tap-to-start button — iOS Safari requires camera start from direct user gesture
+    const btn = document.getElementById('camera-btn');
+    if (btn) btn.style.display = 'block';
+    const dbg = document.getElementById('debug-text');
+    if (dbg) dbg.textContent = 'Tap the button above to start camera';
   }
 
   // ── ATTENDEE LIST ──────────────────────────────────────────
@@ -454,6 +458,7 @@
         if (v.videoWidth > 0) {
           clearInterval(waitForVideo);
           if (dbg) dbg.textContent = 'Scanning ' + v.videoWidth + 'x' + v.videoHeight;
+          if (btn) btn.style.display = 'none';
           tick();
         } else if (attempts > 50) {
           clearInterval(waitForVideo);
@@ -473,16 +478,16 @@
     const v = document.getElementById('preview');
     const c = document.getElementById('canvas');
     const dbg = document.getElementById('debug-text');
-    if (v.readyState >= 2 && v.videoWidth > 0) {
+    if (v.videoWidth > 0) {
       c.width = v.videoWidth; c.height = v.videoHeight;
       const ctx = c.getContext('2d');
       ctx.drawImage(v, 0, 0);
       const img  = ctx.getImageData(0, 0, c.width, c.height);
-      const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
-      if (dbg) dbg.textContent = 'Scanning ' + c.width + 'x' + c.height + (code ? ' — found!' : '');
+      const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
+      if (dbg) dbg.textContent = 'Scanning ' + c.width + 'x' + c.height + (code ? ' — found: ' + code.data.substring(0,20) : '');
       if (code) { handleScan(code.data); return; }
     } else {
-      if (dbg) dbg.textContent = 'State: ' + v.readyState + ' | Size: ' + v.videoWidth + 'x' + v.videoHeight;
+      if (dbg) dbg.textContent = 'W:' + v.videoWidth + ' H:' + v.videoHeight + ' S:' + v.readyState;
     }
     rafId = requestAnimationFrame(tick);
   }
